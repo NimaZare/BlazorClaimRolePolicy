@@ -1,0 +1,110 @@
+﻿@page "/adminpage"
+
+@using BlazorClaimRolePolicy.Data
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Mvc.Rendering
+@using System.Security.Claims
+@inject IJSRuntime JsRuntime
+@inject UserManager<IdentityUser> _userManager
+@inject SignInManager<IdentityUser> _signInManager
+
+<h3>Admin Page</h3>
+
+<EditForm Model="newUser" OnValidSubmit="@AddUserWithRole">
+	<DataAnnotationsValidator />
+	<ValidationSummary />
+
+	<div class="form-group row">
+		<label for="login" class="col-sm-2 col-form-label">Add User</label>
+		<div class="col-sm-10">
+			<InputText id="login" @bind-Value="newUser.LoginName" />
+		</div>
+	</div>
+	<div class="form-group row">
+		<label for="login" class="col-sm-2 col-form-label">Assign Role</label>
+		<div class="col-sm-10">
+			<InputSelect id="role-select" @bind-Value="newUser.UserRole">
+				@foreach (var role in selectList)
+				{
+					<option value="@role.Value" selected="@role.Selected">@role.Text</option>
+				}
+			</InputSelect>
+		</div>
+	</div>
+
+	<input type="submit" class="btn btn-primary" value="Save" />
+</EditForm>
+
+@code {
+
+	User newUser = new();
+	List<Role> rolesList = new();
+	List<SelectListItem> selectList = new();
+
+	protected override async Task OnInitializedAsync()
+	{
+		rolesList = new()
+		{
+			new Role(){ RoleName = "Admin", ID = "1"},
+			new Role(){ RoleName = "HR", ID = "2"},
+			new Role(){ RoleName = "Manager", ID = "3"},
+			new Role(){ RoleName = "User", ID = "4"},
+		};
+
+		foreach (Role role in rolesList)
+		{
+			if (rolesList.Count < 1)
+			{
+				selectList.Add(new SelectListItem()
+					{
+						Text = role.RoleName,
+						Value = role.ID,
+						Selected = true
+					});
+			}
+			else
+			{
+				selectList.Add(new SelectListItem()
+					{
+						Text = role.RoleName,
+						Value = role.ID,
+						Selected = false
+					});
+			}
+		}
+	}
+
+	public async void AddUserWithRole(EditContext context)
+	{
+		var userModel = context.Model as User;
+		var user = new IdentityUser
+			{
+				UserName = userModel.LoginName,
+				Email = userModel.LoginName,
+				EmailConfirmed = true
+			};
+
+		String messagePrompt = "Failed";
+		var result = await _userManager.CreateAsync(user, "King*+*2022");
+
+		if (result.Succeeded)
+		{
+			messagePrompt = "User Was Added. ";
+
+			var getRoleFromList = rolesList.FirstOrDefault(x => x.ID == userModel?.UserRole);
+			var roleAddedResult = await _userManager.AddToRoleAsync(user, getRoleFromList?.RoleName ?? "User");
+			if (roleAddedResult.Succeeded)
+			{
+				messagePrompt += "Role Was Added. ";
+			}
+
+			var claimAddedResult = await _userManager.AddClaimAsync(user, new Claim(getRoleFromList?.RoleName ?? "User", getRoleFromList?.ID ?? ""));
+			if (roleAddedResult.Succeeded)
+			{
+				messagePrompt += "Claim Was Added. ";
+			}
+
+			await JsRuntime.InvokeVoidAsync("alert", messagePrompt);
+		}
+	}
+}
